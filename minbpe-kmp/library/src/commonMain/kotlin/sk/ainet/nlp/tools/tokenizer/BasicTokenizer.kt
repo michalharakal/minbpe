@@ -1,6 +1,7 @@
 package sk.ainet.nlp.tools.tokenizer
 
 import sk.ainet.nlp.tools.tokenizer.utils.BpeUtils
+import sk.ainet.nlp.tools.tokenizer.persistence.TokenizerData
 
 /**
  * Basic Byte Pair Encoding (BPE) tokenizer implementation.
@@ -117,7 +118,7 @@ class BasicTokenizer : Tokenizer() {
      * Requirements: 1.3
      */
     override fun encode(text: String, allowedSpecial: String): List<Int> {
-        if (_merges.isEmpty()) {
+        if (_vocab.isEmpty()) {
             throw IllegalStateException("Tokenizer must be trained before encoding")
         }
         
@@ -178,27 +179,35 @@ class BasicTokenizer : Tokenizer() {
     }
     
     /**
-     * Create a BasicTokenizer instance from a loaded model.
+     * Load tokenizer state from serialized data.
      * 
-     * @param model Loaded tokenizer model containing merges and metadata
-     * @return BasicTokenizer instance with the loaded state
+     * @param data Serialized tokenizer data containing merges and metadata
      */
-    override fun createFromModel(model: TokenizerModel): Tokenizer {
-        model.validate()
+    override fun loadFromData(data: TokenizerData) {
+        data.validate()
         
         // Verify this is a BasicTokenizer model (no pattern, no special tokens)
-        if (model.pattern.isNotEmpty()) {
-            throw IllegalArgumentException("BasicTokenizer model should have empty pattern, got: '${model.pattern}'")
+        if (data.pattern.isNotEmpty()) {
+            throw IllegalArgumentException("BasicTokenizer model should have empty pattern, got: '${data.pattern}'")
         }
         
-        if (model.specialTokens.isNotEmpty()) {
-            throw IllegalArgumentException("BasicTokenizer model should have no special tokens, got: ${model.specialTokens}")
+        if (data.specialTokens.isNotEmpty()) {
+            throw IllegalArgumentException("BasicTokenizer model should have no special tokens, got: ${data.specialTokens}")
         }
         
-        val tokenizer = BasicTokenizer()
-        tokenizer._merges = model.getMergesMap()
-        tokenizer._vocab = tokenizer.buildVocab()
-        
-        return tokenizer
+        _merges = data.getMergesMap()
+        _vocab = buildVocab()
+    }
+    
+    /**
+     * Load tokenizer state from serialized data.
+     * 
+     * @param data Serialized tokenizer data containing merges and metadata
+     */
+    @Deprecated("Use loadFromData instead", ReplaceWith("loadFromData(model)"))
+    fun createFromModel(model: TokenizerModel): Tokenizer {
+        // This method is deprecated and will be removed
+        // Use the persistence layer instead
+        throw UnsupportedOperationException("Use TokenizerRepository.load() instead")
     }
 }
