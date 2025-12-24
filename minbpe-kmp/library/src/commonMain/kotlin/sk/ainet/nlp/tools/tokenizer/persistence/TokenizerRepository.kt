@@ -14,14 +14,88 @@ import sk.ainet.nlp.tools.tokenizer.BasicTokenizer
  * 
  * This class provides a convenient API for saving and loading tokenizers
  * to/from the file system, handling the details of file operations and
- * progress monitoring.
+ * progress monitoring. Supports both JSON and Python-compatible formats.
  */
 class TokenizerRepository(
     private val persistence: TokenizerPersistence = JsonTokenizerPersistence()
 ) {
     
     /**
-     * Save a tokenizer to files with the given prefix.
+     * Save tokenizer in Python-compatible format.
+     * Creates files that can be read by the original Python minbpe implementation.
+     */
+    fun savePythonCompatible(tokenizer: Tokenizer, filePrefix: String): Flow<RepositoryResult> {
+        val pythonPersistence = PythonCompatiblePersistence()
+        return saveWithPersistence(tokenizer, filePrefix, pythonPersistence)
+    }
+    
+    /**
+     * Load tokenizer from Python-compatible .model file.
+     * Can read files created by the original Python minbpe implementation.
+     */
+    fun loadPythonCompatible(modelFile: String): Flow<RepositoryResult> {
+        val pythonPersistence = PythonCompatiblePersistence()
+        return loadWithPersistence(modelFile, pythonPersistence)
+    }
+    
+    /**
+     * Auto-detect file format and load tokenizer.
+     */
+    fun loadAuto(filePath: String): Flow<RepositoryResult> = flow {
+        emit(RepositoryResult.Started("Auto-detecting format for $filePath"))
+        
+        try {
+            val path = Path(filePath)
+            if (!SystemFileSystem.exists(path)) {
+                emit(RepositoryResult.Error("File not found: $filePath"))
+                return@flow
+            }
+            
+            // Detect format
+            val detectedPersistence = when {
+                filePath.endsWith(".model") -> {
+                    emit(RepositoryResult.Progress("Detected Python-compatible format"))
+                    PythonCompatiblePersistence()
+                }
+                filePath.endsWith(".json") -> {
+                    emit(RepositoryResult.Progress("Detected JSON format"))
+                    JsonTokenizerPersistence()
+                }
+                else -> {
+                    // Try to detect by content
+                    val source = SystemFileSystem.source(path).buffered()
+                    val firstLine = source.readString().lines().firstOrNull()?.trim()
+                    source.close()
+                    
+                    when {
+                        firstLine == "minbpe v1" -> {
+                            emit(RepositoryResult.Progress("Detected Python-compatible format by content"))
+                            PythonCompatiblePersistence()
+                        }
+                        firstLine?.startsWith("{") == true -> {
+                            emit(RepositoryResult.Progress("Detected JSON format by content"))
+                            JsonTokenizerPersistence()
+                        }
+                        else -> {
+                            emit(RepositoryResult.Error("Cannot detect file format for: $filePath"))
+                            return@flow
+                        }
+                    }
+                }
+            }
+            
+            // Load with detected persistence
+            loadWithPersistence(filePath, detectedPersistence).collect { result ->
+                emit(result)
+            }
+            
+        } catch (e: Exception) {
+            emit(RepositoryResult.Error("Auto-detection failed: ${e.message}"))
+        }
+    }
+    
+    /**
+     * Save a tokenizer to files with the given prefix using the default persistence.
      * Creates two files:
      * - {filePrefix}.model: Serialized tokenizer model
      * - {filePrefix}.vocab: Human-readable vocabulary file
@@ -30,7 +104,28 @@ class TokenizerRepository(
      * @param filePrefix Prefix for output files
      * @return Flow of save operations with progress
      */
-    fun save(tokenizer: Tokenizer, filePrefix: String): Flow<RepositoryResult> = flow {
+    fun save(tokenizer: Tokenizer, filePrefix: String): Flow<RepositoryResult> {
+        return saveWithPersistence(tokenizer, filePrefix, persistence)
+    }
+    
+    /**
+     * Load a tokenizer from a model file using the default persistence.
+     * 
+     * @param modelFile Path to the model file
+     * @return Flow of load operations with the final tokenizer
+     */
+    fun load(modelFile: String): Flow<RepositoryResult> {
+        return loadWithPersistence(modelFile, persistence)
+    }
+    
+    /**
+     * Internal method to save with a specific persistence implementation.
+     */
+    private fun saveWithPersistence(
+        tokenizer: Tokenizer, 
+        filePrefix: String, 
+        persistenceImpl: TokenizerPersistence
+    ): Flow<RepositoryResult> = flow {
         emit(RepositoryResult.Started("Saving tokenizer to $filePrefix"))
         
         try {
@@ -39,7 +134,7 @@ class TokenizerRepository(
             val modelSink = SystemFileSystem.sink(modelPath).buffered()
             
             val modelProgress = mutableListOf<SaveProgress>()
-            persistence.save(tokenizer, modelSink).toList(modelProgress)
+            persistenceImpl.save(tokenizer, modelSink).toList(modelProgress)
             
             modelSink.close()
             
