@@ -1,82 +1,74 @@
-import com.android.build.api.dsl.androidLibrary
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.android.kotlin.multiplatform.library)
+    alias(libs.plugins.androidLibrary)
     alias(libs.plugins.vanniktech.mavenPublish)
+    alias(libs.plugins.kotlinx.serialization)
 }
 
-group = "io.github.kotlin"
+group = "sk.ainet.nlp.tools"
 version = "1.0.0"
 
 kotlin {
-    jvm()
-    androidLibrary {
-        namespace = "org.jetbrains.kotlinx.multiplatform.library.template"
-        compileSdk = libs.versions.android.compileSdk.get().toInt()
-        minSdk = libs.versions.android.minSdk.get().toInt()
-
-        withJava() // enable java compilation support
-        withHostTestBuilder {}.configure {}
-        withDeviceTestBuilder {
-            sourceSetTreeName = "test"
-        }
-
-        compilations.configureEach {
-            compilerOptions.configure {
-                jvmTarget.set(
-                    JvmTarget.JVM_11
-                )
-            }
+    androidTarget {
+        @OptIn(ExperimentalKotlinGradlePluginApi::class)
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
         }
     }
-    iosX64()
+
     iosArm64()
     iosSimulatorArm64()
-    linuxX64()
+    macosArm64 ()
+    linuxX64 ()
+    linuxArm64 ()
+
+    jvm()
+
+    js {
+        browser()
+    }
+
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        browser()
+        binaries.executable()
+    }
 
     sourceSets {
         commonMain.dependencies {
-            //put your multiplatform dependencies here
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.io.core)
+            implementation(libs.kotlinx.coroutines.core)
         }
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        
+        val jvmTest by getting {
+            dependencies {
+                implementation(libs.kotest.framework.engine)
+                implementation(libs.kotest.property)
+                implementation(libs.kotest.assertions.core)
+            }
+        }
     }
 }
 
-mavenPublishing {
-    publishToMavenCentral()
+android {
+    namespace = "sk.ainet.compilie.dag"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
 
-    signAllPublications()
-
-    coordinates(group.toString(), "library", version.toString())
-
-    pom {
-        name = "My library"
-        description = "A library."
-        inceptionYear = "2024"
-        url = "https://github.com/kotlin/multiplatform-library-template/"
-        licenses {
-            license {
-                name = "XXX"
-                url = "YYY"
-                distribution = "ZZZ"
-            }
-        }
-        developers {
-            developer {
-                id = "XXX"
-                name = "YYY"
-                url = "ZZZ"
-            }
-        }
-        scm {
-            url = "XXX"
-            connection = "YYY"
-            developerConnection = "ZZZ"
-        }
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
