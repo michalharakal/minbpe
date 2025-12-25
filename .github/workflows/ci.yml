@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+        
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-home-cache-cleanup: true
+        
+    - name: Run Python Tests
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        python -m pytest tests/ -v
+        
+    - name: Build and Test Kotlin Multiplatform
+      run: |
+        cd minbpe-kmp
+        ./gradlew clean assemble allTests
+        
+    - name: Build UI Sample
+      run: |
+        cd minbpe-kmp
+        ./gradlew :ui-sample:jsBrowserDistribution
+        
+    - name: Test Tokenizer Comparison Tool
+      run: |
+        cd tokenizer-comparison-tool
+        ./gradlew clean test

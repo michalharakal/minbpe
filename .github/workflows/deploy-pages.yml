@@ -1,0 +1,93 @@
+name: Deploy UI to GitHub Pages
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'minbpe-kmp/ui-sample/**'
+      - 'minbpe-kmp/library/**'
+      - 'minbpe-kmp/build.gradle.kts'
+      - 'minbpe-kmp/gradle.properties'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+        
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-home-cache-cleanup: true
+        
+    - name: Build UI Sample
+      run: |
+        cd minbpe-kmp
+        ./gradlew :ui-sample:jsBrowserDistribution
+        
+    - name: Prepare Pages Content
+      run: |
+        # Create pages directory
+        mkdir -p pages
+        
+        # Copy built UI files
+        cp -r minbpe-kmp/ui-sample/build/dist/js/productionExecutable/* pages/
+        
+        # Create a simple index redirect if needed
+        if [ ! -f pages/index.html ]; then
+          echo "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0;url=./ui-sample.html'></head><body>Redirecting...</body></html>" > pages/index.html
+        fi
+        
+        # Add a README for the demo
+        cat > pages/README.md << 'EOF'
+        # MinBPE Tokenizer Visualizer
+        
+        This is an interactive web demo of the MinBPE tokenizer built with Kotlin Multiplatform.
+        
+        ## Features
+        - Train BPE tokenizer on custom text
+        - Real-time tokenization visualization
+        - Interactive token breakdown
+        - Cross-platform Kotlin/JS implementation
+        
+        ## Source Code
+        [View on GitHub](https://github.com/michalharakal/minbpe)
+        EOF
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './pages'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
