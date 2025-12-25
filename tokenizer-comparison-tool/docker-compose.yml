@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  python-tokenizer:
+    build:
+      context: ./docker/python
+      dockerfile: Dockerfile
+    container_name: minbpe-python
+    volumes:
+      - shared-data:/shared
+      - ../minbpe:/shared/minbpe:ro  # Mount Python minbpe implementation
+    networks:
+      - tokenizer-network
+    profiles:
+      - comparison
+    
+  kotlin-tokenizer:
+    build:
+      context: ./docker/kotlin
+      dockerfile: Dockerfile
+    container_name: minbpe-kotlin
+    volumes:
+      - shared-data:/shared
+      - ../minbpe-kmp:/shared/minbpe-kmp:ro  # Mount Kotlin minbpe implementation
+    networks:
+      - tokenizer-network
+    profiles:
+      - comparison
+    depends_on:
+      - python-tokenizer
+
+  comparison-tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tokenizer-comparison-tool
+    volumes:
+      - shared-data:/shared
+      - ./test-corpus:/app/test-corpus:ro
+      - ./reports:/app/reports
+    networks:
+      - tokenizer-network
+    depends_on:
+      - python-tokenizer
+      - kotlin-tokenizer
+    profiles:
+      - comparison
+
+volumes:
+  shared-data:
+    driver: local
+
+networks:
+  tokenizer-network:
+    driver: bridge

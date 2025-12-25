@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kotlin
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Reports and outputs
+reports/
+*.log
+
+# Docker
+.docker/
+
+# Test data
+test-corpus/generated/
+test-results/
+
+# Temporary files
+*.tmp
+*.temp
