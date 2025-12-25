@@ -98,10 +98,46 @@ data class TokenizerData(
     val metadata: Map<String, String> = emptyMap()
 ) {
     fun validate() {
-        require(version.startsWith("minbpe v")) { "Invalid version: $version" }
-        require(type.isNotBlank()) { "Tokenizer type cannot be blank" }
-        require(merges.all { (pair, id) -> pair.first >= 0 && pair.second >= 0 && id >= 256 }) {
-            "Invalid merge data"
+        try {
+            require(version.startsWith("minbpe v")) { "Invalid version: $version" }
+            require(type.isNotBlank()) { "Tokenizer type cannot be blank" }
+            require(type in setOf("basic", "regex", "gpt4")) { "Invalid tokenizer type: $type" }
+            
+            // Validate pattern
+            if (pattern.isNotBlank()) {
+                try {
+                    Regex(pattern)
+                } catch (e: Exception) {
+                    throw IllegalArgumentException("Invalid regex pattern: $pattern")
+                }
+            }
+            
+            // Validate merges
+            require(merges.all { (pair, id) -> 
+                pair.first >= 0 && pair.second >= 0 && id >= 256 
+            }) { "Invalid merge data: all token IDs must be non-negative and merge results must be >= 256" }
+            
+            // Check for duplicate merge result IDs
+            val mergeIds = merges.map { it.second }
+            require(mergeIds.size == mergeIds.toSet().size) { "Duplicate merge result IDs found" }
+            
+            // Validate special tokens
+            for ((token, id) in specialTokens) {
+                require(token.isNotBlank()) { "Special token string cannot be blank" }
+                require(id >= 0) { "Special token ID cannot be negative: $id for token '$token'" }
+                require(id !in 0..255) { "Special token ID cannot be in base vocabulary range (0-255): $id for token '$token'" }
+            }
+            
+            // Check for conflicts between special tokens and merges
+            val specialIds = specialTokens.values.toSet()
+            val mergeResultIds = merges.map { it.second }.toSet()
+            val conflicts = specialIds.intersect(mergeResultIds)
+            require(conflicts.isEmpty()) { "Special token IDs conflict with merge result IDs: $conflicts" }
+            
+        } catch (e: IllegalArgumentException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalArgumentException("TokenizerData validation failed: ${e.message}")
         }
     }
     

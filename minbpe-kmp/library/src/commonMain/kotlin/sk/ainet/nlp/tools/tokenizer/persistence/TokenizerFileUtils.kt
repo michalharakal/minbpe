@@ -4,6 +4,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.last
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.buffered
+import kotlinx.io.readString
 import sk.ainet.nlp.tools.tokenizer.Tokenizer
 
 /**
@@ -24,14 +26,22 @@ object TokenizerFileUtils {
         
         // Save model file
         val modelPath = Path("$filePrefix.model")
-        SystemFileSystem.sink(modelPath).use { sink ->
-            persistence.save(tokenizer, sink).last()
+        val modelSink = SystemFileSystem.sink(modelPath).buffered()
+        
+        try {
+            persistence.save(tokenizer, modelSink).last()
+        } finally {
+            modelSink.close()
         }
         
         // Save vocab file
         val vocabPath = Path("$filePrefix.vocab")
-        SystemFileSystem.sink(vocabPath).use { sink ->
-            persistence.saveVocab(tokenizer, sink).last()
+        val vocabSink = SystemFileSystem.sink(vocabPath).buffered()
+        
+        try {
+            persistence.saveVocab(tokenizer, vocabSink).last()
+        } finally {
+            vocabSink.close()
         }
     }
     
@@ -46,9 +56,8 @@ object TokenizerFileUtils {
         val persistence = PythonCompatiblePersistence()
         val modelPath = Path(modelFile)
         
-        return SystemFileSystem.source(modelPath).use { source ->
-            persistence.load(source)
-        }
+        val source = SystemFileSystem.source(modelPath).buffered()
+        return persistence.load(source)
     }
     
     /**
@@ -62,8 +71,11 @@ object TokenizerFileUtils {
         val persistence = JsonTokenizerPersistence()
         val jsonPath = Path(jsonFile)
         
-        SystemFileSystem.sink(jsonPath).use { sink ->
+        val sink = SystemFileSystem.sink(jsonPath).buffered()
+        try {
             persistence.save(tokenizer, sink).last()
+        } finally {
+            sink.close()
         }
     }
     
@@ -77,9 +89,8 @@ object TokenizerFileUtils {
         val persistence = JsonTokenizerPersistence()
         val jsonPath = Path(jsonFile)
         
-        return SystemFileSystem.source(jsonPath).use { source ->
-            persistence.load(source)
-        }
+        val source = SystemFileSystem.source(jsonPath).buffered()
+        return persistence.load(source)
     }
     
     /**
@@ -96,13 +107,27 @@ object TokenizerFileUtils {
             else -> {
                 // Try to detect by content
                 val path = Path(filePath)
-                SystemFileSystem.source(path).use { source ->
+                val source = SystemFileSystem.source(path).buffered()
+                
+                try {
                     val firstLine = source.readString().lines().firstOrNull()?.trim()
                     when {
-                        firstLine == "minbpe v1" -> loadPythonCompatible(filePath)
-                        firstLine?.startsWith("{") == true -> loadJson(filePath)
-                        else -> throw IllegalArgumentException("Cannot detect file format for: $filePath")
+                        firstLine == "minbpe v1" -> {
+                            source.close()
+                            loadPythonCompatible(filePath)
+                        }
+                        firstLine?.startsWith("{") == true -> {
+                            source.close()
+                            loadJson(filePath)
+                        }
+                        else -> {
+                            source.close()
+                            throw IllegalArgumentException("Cannot detect file format for: $filePath")
+                        }
                     }
+                } catch (e: Exception) {
+                    source.close()
+                    throw e
                 }
             }
         }

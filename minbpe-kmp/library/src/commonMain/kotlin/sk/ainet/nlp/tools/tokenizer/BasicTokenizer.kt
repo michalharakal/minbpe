@@ -22,7 +22,7 @@ import sk.ainet.nlp.tools.tokenizer.persistence.TokenizerData
  * - 1.4: Reconstruct original text from token sequences
  * - 1.5: Maintain vocabulary mappings from token IDs to byte sequences
  */
-class BasicTokenizer : Tokenizer() {
+open class BasicTokenizer : Tokenizer() {
     
     private var _merges: Map<Pair<Int, Int>, Int> = emptyMap()
     private var _vocab: Map<Int, ByteArray> = emptyMap()
@@ -45,61 +45,83 @@ class BasicTokenizer : Tokenizer() {
      * @param text Training text to learn BPE merges from
      * @param vocabSize Target vocabulary size (must be >= 256)
      * @param verbose Whether to print training progress
+     * @throws IllegalArgumentException if parameters are invalid
+     * @throws TokenizationException if training fails
      * 
      * Requirements: 1.1, 1.2
      */
     override fun train(text: String, vocabSize: Int, verbose: Boolean) {
+        // Validate inputs
+        validateText(text, "training")
         validateVocabSize(vocabSize)
         
-        // Convert text to UTF-8 bytes as initial token sequence
-        val textBytes = text.encodeToByteArray()
-        var ids = textBytes.map { it.toInt() and 0xFF }.toMutableList()  // Convert to unsigned bytes
-        
-        val merges = mutableMapOf<Pair<Int, Int>, Int>()
-        val numMerges = vocabSize - 256
-        
-        if (verbose) {
-            println("Training BasicTokenizer with vocab size $vocabSize")
-            println("Text length: ${text.length} characters, ${textBytes.size} bytes")
-            println("Target merges: $numMerges")
-        }
-        
-        // Perform BPE training
-        for (i in 0 until numMerges) {
-            // Count all consecutive pairs
-            val stats = BpeUtils.getStats(ids)
-            
-            if (stats.isEmpty()) {
+        try {
+            // Handle empty text case
+            if (text.isEmpty()) {
                 if (verbose) {
-                    println("No more pairs to merge at iteration $i")
+                    println("Training BasicTokenizer with empty text")
+                    println("No merges will be learned")
                 }
-                break
+                _merges = emptyMap()
+                _vocab = buildVocab()
+                return
             }
             
-            // Find the most frequent pair
-            val mostFrequentPair = stats.maxByOrNull { it.value }?.key
-                ?: break
+            // Convert text to UTF-8 bytes as initial token sequence
+            val textBytes = safeEncodeUtf8(text)
+            var ids = textBytes.map { it.toInt() and 0xFF }.toMutableList()  // Convert to unsigned bytes
             
-            val newTokenId = 256 + i
+            val merges = mutableMapOf<Pair<Int, Int>, Int>()
+            val numMerges = vocabSize - 256
             
             if (verbose) {
-                println("Merge $i: $mostFrequentPair -> $newTokenId (count: ${stats[mostFrequentPair]})")
+                println("Training BasicTokenizer with vocab size $vocabSize")
+                println("Text length: ${text.length} characters, ${textBytes.size} bytes")
+                println("Target merges: $numMerges")
             }
             
-            // Record the merge rule
-            merges[mostFrequentPair] = newTokenId
+            // Perform BPE training
+            for (i in 0 until numMerges) {
+                // Count all consecutive pairs
+                val stats = BpeUtils.getStats(ids)
+                
+                if (stats.isEmpty()) {
+                    if (verbose) {
+                        println("No more pairs to merge at iteration $i")
+                    }
+                    break
+                }
+                
+                // Find the most frequent pair
+                val mostFrequentPair = stats.maxByOrNull { it.value }?.key
+                    ?: break
+                
+                val newTokenId = 256 + i
+                
+                if (verbose) {
+                    println("Merge $i: $mostFrequentPair -> $newTokenId (count: ${stats[mostFrequentPair]})")
+                }
+                
+                // Record the merge rule
+                merges[mostFrequentPair] = newTokenId
+                
+                // Apply the merge to the token sequence
+                ids = BpeUtils.merge(ids, mostFrequentPair, newTokenId).toMutableList()
+            }
             
-            // Apply the merge to the token sequence
-            ids = BpeUtils.merge(ids, mostFrequentPair, newTokenId).toMutableList()
-        }
-        
-        // Store the learned merges and build vocabulary
-        _merges = merges.toMap()
-        _vocab = buildVocab()
-        
-        if (verbose) {
-            println("Training complete. Learned ${_merges.size} merges.")
-            println("Final vocabulary size: ${_vocab.size}")
+            // Store the learned merges and build vocabulary
+            _merges = merges.toMap()
+            _vocab = buildVocab()
+            
+            if (verbose) {
+                println("Training complete. Learned ${_merges.size} merges.")
+                println("Final vocabulary size: ${_vocab.size}")
+            }
+            
+        } catch (e: TokenizationException) {
+            throw e // Re-throw tokenization exceptions
+        } catch (e: Exception) {
+            throw TokenizationException("Training failed: ${e.message}", e)
         }
     }
     
@@ -114,37 +136,49 @@ class BasicTokenizer : Tokenizer() {
      * @param text Input text to encode
      * @param allowedSpecial Ignored for BasicTokenizer (no special tokens)
      * @return List of token IDs representing the encoded text
+     * @throws IllegalStateException if tokenizer is not trained
+     * @throws TokenizationException if encoding fails
      * 
      * Requirements: 1.3
      */
     override fun encode(text: String, allowedSpecial: String): List<Int> {
-        if (_vocab.isEmpty()) {
-            throw IllegalStateException("Tokenizer must be trained before encoding")
+        validateInitialized()
+        
+        // Handle empty text
+        if (text.isEmpty()) {
+            return emptyList()
         }
         
-        // Convert text to UTF-8 bytes as initial token sequence
-        val textBytes = text.encodeToByteArray()
-        var ids = textBytes.map { it.toInt() and 0xFF }  // Convert to unsigned bytes
-        
-        // Apply merges in the order they were learned (greedy approach)
-        // We need to keep applying merges until no more can be applied
-        while (true) {
-            val stats = BpeUtils.getStats(ids)
+        try {
+            // Convert text to UTF-8 bytes as initial token sequence
+            val textBytes = safeEncodeUtf8(text)
+            var ids = textBytes.map { it.toInt() and 0xFF }  // Convert to unsigned bytes
             
-            // Find the merge with the lowest index (earliest learned) that can be applied
-            val applicableMerge = _merges.entries
-                .filter { (pair, _) -> stats.containsKey(pair) }
-                .minByOrNull { (_, tokenId) -> tokenId }
-            
-            if (applicableMerge == null) {
-                break  // No more merges can be applied
+            // Apply merges in the order they were learned (greedy approach)
+            // We need to keep applying merges until no more can be applied
+            while (true) {
+                val stats = BpeUtils.getStats(ids)
+                
+                // Find the merge with the lowest index (earliest learned) that can be applied
+                val applicableMerge = _merges.entries
+                    .filter { (pair, _) -> stats.containsKey(pair) }
+                    .minByOrNull { (_, tokenId) -> tokenId }
+                
+                if (applicableMerge == null) {
+                    break  // No more merges can be applied
+                }
+                
+                val (pair, newTokenId) = applicableMerge
+                ids = BpeUtils.merge(ids, pair, newTokenId)
             }
             
-            val (pair, newTokenId) = applicableMerge
-            ids = BpeUtils.merge(ids, pair, newTokenId)
+            return ids
+            
+        } catch (e: TokenizationException) {
+            throw e // Re-throw tokenization exceptions
+        } catch (e: Exception) {
+            throw TokenizationException("Encoding failed: ${e.message}", e)
         }
-        
-        return ids
     }
     
     /**
@@ -157,46 +191,70 @@ class BasicTokenizer : Tokenizer() {
      * 
      * @param ids List of token IDs to decode
      * @return Decoded text string
+     * @throws IllegalStateException if tokenizer is not trained
+     * @throws TokenizationException if decoding fails
      * 
      * Requirements: 1.4
      */
     override fun decode(ids: List<Int>): String {
-        if (_vocab.isEmpty()) {
-            throw IllegalStateException("Tokenizer must be trained before decoding")
+        validateInitialized()
+        
+        // Handle empty input
+        if (ids.isEmpty()) {
+            return ""
         }
         
-        // Concatenate byte sequences for all token IDs
-        val allBytes = mutableListOf<Byte>()
-        
-        for (id in ids) {
-            val bytes = _vocab[id] 
-                ?: throw IllegalArgumentException("Unknown token ID: $id")
-            allBytes.addAll(bytes.toList())
+        try {
+            // Validate token IDs
+            validateTokenIds(ids)
+            
+            // Concatenate byte sequences for all token IDs
+            val allBytes = mutableListOf<Byte>()
+            
+            for (id in ids) {
+                val bytes = _vocab[id] 
+                    ?: throw IllegalArgumentException("Unknown token ID: $id")
+                allBytes.addAll(bytes.toList())
+            }
+            
+            // Convert bytes back to string with safe UTF-8 handling
+            return safeDecodeUtf8(allBytes.toByteArray())
+            
+        } catch (e: TokenizationException) {
+            throw e // Re-throw tokenization exceptions
+        } catch (e: Exception) {
+            throw TokenizationException("Decoding failed: ${e.message}", e)
         }
-        
-        // Convert bytes back to string
-        return allBytes.toByteArray().decodeToString()
     }
     
     /**
      * Load tokenizer state from serialized data.
      * 
      * @param data Serialized tokenizer data containing merges and metadata
+     * @throws IllegalArgumentException if data is invalid for BasicTokenizer
+     * @throws TokenizationException if loading fails
      */
     override fun loadFromData(data: TokenizerData) {
-        data.validate()
-        
-        // Verify this is a BasicTokenizer model (no pattern, no special tokens)
-        if (data.pattern.isNotEmpty()) {
-            throw IllegalArgumentException("BasicTokenizer model should have empty pattern, got: '${data.pattern}'")
+        try {
+            data.validate()
+            
+            // Verify this is a BasicTokenizer model (no pattern, no special tokens)
+            if (data.pattern.isNotEmpty()) {
+                throw IllegalArgumentException("BasicTokenizer model should have empty pattern, got: '${data.pattern}'")
+            }
+            
+            if (data.specialTokens.isNotEmpty()) {
+                throw IllegalArgumentException("BasicTokenizer model should have no special tokens, got: ${data.specialTokens}")
+            }
+            
+            _merges = data.getMergesMap()
+            _vocab = buildVocab()
+            
+        } catch (e: IllegalArgumentException) {
+            throw e // Re-throw validation errors
+        } catch (e: Exception) {
+            throw TokenizationException("Failed to load BasicTokenizer from data: ${e.message}", e)
         }
-        
-        if (data.specialTokens.isNotEmpty()) {
-            throw IllegalArgumentException("BasicTokenizer model should have no special tokens, got: ${data.specialTokens}")
-        }
-        
-        _merges = data.getMergesMap()
-        _vocab = buildVocab()
     }
     
     /**

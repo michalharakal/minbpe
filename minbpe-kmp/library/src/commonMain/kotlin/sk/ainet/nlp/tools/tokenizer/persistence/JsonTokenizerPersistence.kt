@@ -2,7 +2,6 @@ package sk.ainet.nlp.tools.tokenizer.persistence
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.io.Sink
 import kotlinx.io.readByteArray

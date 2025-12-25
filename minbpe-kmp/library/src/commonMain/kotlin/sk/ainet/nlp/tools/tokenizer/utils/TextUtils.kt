@@ -1,5 +1,7 @@
 package sk.ainet.nlp.tools.tokenizer.utils
 
+import sk.ainet.nlp.tools.tokenizer.TokenizationException
+
 /**
  * Text processing utilities for tokenization.
  * 
@@ -70,11 +72,16 @@ object TextUtils {
      * 
      * @param text The input string
      * @return UTF-8 encoded byte array
+     * @throws TokenizationException if encoding fails
      * 
      * Requirements: 6.3 - Handle UTF-8 encoding correctly
      */
     fun stringToBytes(text: String): ByteArray {
-        return text.encodeToByteArray()
+        return try {
+            text.encodeToByteArray()
+        } catch (e: Exception) {
+            throw TokenizationException("Failed to encode string as UTF-8: ${e.message}", e)
+        }
     }
     
     /**
@@ -85,10 +92,76 @@ object TextUtils {
      * 
      * @param bytes The UTF-8 encoded byte array
      * @return Decoded string
+     * @throws TokenizationException if decoding fails completely
      * 
      * Requirements: 6.3 - Handle UTF-8 decoding correctly
      */
     fun bytesToString(bytes: ByteArray): String {
-        return bytes.decodeToString()
+        return try {
+            bytes.decodeToString()
+        } catch (e: Exception) {
+            // Try graceful handling of invalid UTF-8 sequences
+            try {
+                val result = StringBuilder()
+                var i = 0
+                while (i < bytes.size) {
+                    try {
+                        // Try to decode a single character
+                        val char = bytes.sliceArray(i..minOf(i + 3, bytes.size - 1)).decodeToString()
+                        if (char.isNotEmpty()) {
+                            result.append(char)
+                            i += char.encodeToByteArray().size
+                        } else {
+                            result.append('\uFFFD') // Unicode replacement character
+                            i++
+                        }
+                    } catch (e: Exception) {
+                        result.append('\uFFFD') // Unicode replacement character
+                        i++
+                    }
+                }
+                result.toString()
+            } catch (e2: Exception) {
+                throw TokenizationException("Failed to decode bytes as UTF-8: ${e.message}", e)
+            }
+        }
+    }
+    
+    /**
+     * Validate that a string contains only valid UTF-8 sequences.
+     * 
+     * @param text The string to validate
+     * @throws TokenizationException if the string contains invalid UTF-8
+     */
+    fun validateUtf8(text: String) {
+        try {
+            // Try to encode and decode to check for validity
+            val bytes = text.encodeToByteArray()
+            bytes.decodeToString()
+        } catch (e: Exception) {
+            throw TokenizationException("String contains invalid UTF-8 sequences: ${e.message}", e)
+        }
+    }
+    
+    /**
+     * Safely handle potentially malformed text input.
+     * 
+     * @param text Input text that may contain invalid characters
+     * @return Cleaned text with invalid sequences replaced
+     */
+    fun sanitizeText(text: String): String {
+        return try {
+            // First try direct validation
+            validateUtf8(text)
+            text
+        } catch (e: TokenizationException) {
+            // If validation fails, clean the text
+            text.replace('\uFFFD', '?') // Replace replacement characters
+                .filter { char ->
+                    // Keep only valid Unicode characters
+                    char.isLetterOrDigit() || char.isWhitespace() || 
+                    char in ".,!?;:()[]{}\"'-_@#$%^&*+=<>/\\|`~"
+                }
+        }
     }
 }

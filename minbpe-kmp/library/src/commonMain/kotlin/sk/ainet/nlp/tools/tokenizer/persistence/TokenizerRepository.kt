@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.io.buffered
+import kotlinx.io.readString
 import sk.ainet.nlp.tools.tokenizer.Tokenizer
 import sk.ainet.nlp.tools.tokenizer.BasicTokenizer
+import sk.ainet.nlp.tools.tokenizer.RegexTokenizer
 
 /**
  * High-level repository for tokenizer persistence operations.
@@ -151,7 +153,7 @@ class TokenizerRepository(
             val vocabSink = SystemFileSystem.sink(vocabPath).buffered()
             
             val vocabProgress = mutableListOf<SaveProgress>()
-            persistence.saveVocab(tokenizer, vocabSink).toList(vocabProgress)
+            persistenceImpl.saveVocab(tokenizer, vocabSink).toList(vocabProgress)
             
             vocabSink.close()
             
@@ -170,12 +172,9 @@ class TokenizerRepository(
     }
     
     /**
-     * Load a tokenizer from a model file.
-     * 
-     * @param modelFile Path to the model file
-     * @return Flow of load operations with the final tokenizer
+     * Internal method to load with a specific persistence implementation.
      */
-    fun load(modelFile: String): Flow<RepositoryResult> = flow {
+    private fun loadWithPersistence(modelFile: String, persistenceImpl: TokenizerPersistence): Flow<RepositoryResult> = flow {
         emit(RepositoryResult.Started("Loading tokenizer from $modelFile"))
         
         try {
@@ -188,7 +187,7 @@ class TokenizerRepository(
             val source = SystemFileSystem.source(modelPath).buffered()
             
             val loadResults = mutableListOf<LoadResult>()
-            persistence.load(source).toList(loadResults)
+            persistenceImpl.load(source).toList(loadResults)
             
             source.close()
             
@@ -227,8 +226,9 @@ class TokenizerRepository(
                 tokenizer
             }
             "regex" -> {
-                // TODO: Implement RegexTokenizer factory
-                throw UnsupportedOperationException("RegexTokenizer loading not yet implemented")
+                val tokenizer = RegexTokenizer(data.pattern)
+                tokenizer.loadFromData(data)
+                tokenizer
             }
             "gpt4" -> {
                 // TODO: Implement GPT4Tokenizer factory
@@ -239,15 +239,4 @@ class TokenizerRepository(
             }
         }
     }
-}
-
-/**
- * Results emitted by repository operations.
- */
-sealed class RepositoryResult {
-    data class Started(val message: String) : RepositoryResult()
-    data class Progress(val message: String) : RepositoryResult()
-    data class Completed(val message: String) : RepositoryResult()
-    data class TokenizerLoaded(val tokenizer: Tokenizer, val message: String) : RepositoryResult()
-    data class Error(val message: String) : RepositoryResult()
 }
