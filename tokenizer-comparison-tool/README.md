@@ -2,6 +2,10 @@
 
 A comprehensive comparison and validation tool for testing compatibility between Python and Kotlin BPE tokenizer implementations.
 
+## 📋 Architecture Documentation
+
+**[📖 Complete Architecture Guide](../TOKENIZER_COMPARISON_ARCHITECTURE.md)** - Detailed system architecture, data flow diagrams, and component specifications with Mermaid diagrams.
+
 ## Overview
 
 This tool provides Docker containerization, CLI utilities, automated testing, and detailed reporting to ensure compatibility and validate performance characteristics between the original Python minbpe implementation and the Kotlin Multiplatform port.
@@ -92,6 +96,8 @@ The tool will support the following commands (implementation in progress):
 ## Development Status
 
 This project is currently under development. The basic project structure and Docker foundation have been established. Implementation of core functionality is in progress according to the specification.
+
+**For detailed architecture information, see the [Architecture Documentation](../TOKENIZER_COMPARISON_ARCHITECTURE.md).**
 
 ## Requirements
 
