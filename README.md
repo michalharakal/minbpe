@@ -40,7 +40,7 @@ The files of the original Python repo are as follows:
 
 ### Additional Tools
 - **[tokenizer-comparison-tool/](tokenizer-comparison-tool/)**: Cross-platform validation tool ensuring consistency between Python and Kotlin implementations
-  - 📋 **[Architecture Documentation](TOKENIZER_COMPARISON_ARCHITECTURE.md)**: Comprehensive system design, data flow, and component architecture
+  - 📋 **[Architecture Documentation](tokenizer-comparison-architecture.md)**: Comprehensive system design, data flow, and component architecture
 
 Finally, the script [train.py](train.py) trains the two major tokenizers on the input text [tests/taylorswift.txt](tests/taylorswift.txt) (this is the Wikipedia entry for her kek) and saves the vocab to disk for visualization. This script runs in about 25 seconds on my (M1) MacBook.
 

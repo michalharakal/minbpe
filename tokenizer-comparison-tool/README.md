@@ -4,7 +4,7 @@ A comprehensive comparison and validation tool for testing compatibility between
 
 ## 📋 Architecture Documentation
 
-**[📖 Complete Architecture Guide](../TOKENIZER_COMPARISON_ARCHITECTURE.md)** - Detailed system architecture, data flow diagrams, and component specifications with Mermaid diagrams.
+**[📖 Complete Architecture Guide](../tokenizer-comparison-architecture.md)** - Detailed system architecture, data flow diagrams, and component specifications with Mermaid diagrams.
 
 ## Overview
 
