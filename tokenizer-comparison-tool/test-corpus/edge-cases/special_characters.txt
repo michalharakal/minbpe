@@ -1,0 +1,7 @@
+Special characters: !@#$%^&*()_+-=[]{}|;':\",./<>?
+Quotes: "double" 'single' `backtick`
+Brackets: () [] {} <> 
+Math: ∑∏∫∆∇∂√∞±×÷≤≥≠≈
+Currency: $€£¥₹₽¢
+Arrows: ←→↑↓↔↕⇐⇒⇑⇓
+Symbols: ©®™§¶†‡•…‰‱

@@ -1,0 +1,13 @@
+# Basic Reference Test Cases
+
+## Test Case 1: Simple ASCII
+Input: "Hello, world!"
+Expected tokens (Basic, vocab=256): [72, 101, 108, 108, 111, 44, 32, 119, 111, 114, 108, 100, 33]
+
+## Test Case 2: Numbers and punctuation
+Input: "123 + 456 = 579"
+Expected tokens (Basic, vocab=256): [49, 50, 51, 32, 43, 32, 52, 53, 54, 32, 61, 32, 53, 55, 57]
+
+## Test Case 3: Unicode
+Input: "Hello 世界"
+Expected tokens (Basic, vocab=256): [72, 101, 108, 108, 111, 32, 228, 184, 150, 231, 149, 140]

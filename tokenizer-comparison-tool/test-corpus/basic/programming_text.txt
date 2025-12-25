@@ -1,0 +1,15 @@
+def tokenize(text):
+    """Tokenize input text using BPE algorithm."""
+    tokens = []
+    for char in text:
+        tokens.append(ord(char))
+    return tokens
+
+class BasicTokenizer:
+    def __init__(self, vocab_size=256):
+        self.vocab_size = vocab_size
+        self.merges = {}
+    
+    def train(self, text):
+        # Implementation of BPE training
+        pass

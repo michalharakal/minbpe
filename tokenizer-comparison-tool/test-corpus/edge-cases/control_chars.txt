@@ -1,0 +1,9 @@
+Line breaks:
+Line 1
+Line 2
+
+Tabs:	tab1	tab2	tab3
+Carriage return: 
+Mixed whitespace:   	  
+	  
+Null and control chars: 

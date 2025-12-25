@@ -21,8 +21,8 @@ data class TestResult(
 @Serializable
 data class TestCaseResult(
     val testCase: TestCase,
-    val pythonResult: TestResult,
-    val kotlinResult: TestResult,
+    val pythonTokens: List<Int>,
+    val kotlinTokens: List<Int>,
     val compatible: Boolean,
     val executionTime: Pair<Long, Long>, // Python, Kotlin
     val errorMessage: String? = null
