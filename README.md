@@ -1,21 +1,53 @@
 # minbpe
 
+![MinBPE Tokenizer Visualizer](assets/ui-screenshot.png)
+
+**Fork Notice**: This is a fork of the original [minbpe](https://github.com/karpathy/minbpe) by Andrej Karpathy, enhanced with a **Kotlin Multiplatform (KMP) port** and an interactive **web UI visualizer** that demonstrates the power of Kotlin Multiplatform by running the same tokenizer code across JVM, Android, iOS, macOS, Linux, JavaScript, and WebAssembly platforms.
+
+## 🚀 New Features in this Fork
+
+- **Kotlin Multiplatform Library**: Full BPE implementation in Kotlin that runs on all major platforms
+- **Interactive Web UI**: Browser-based tokenizer visualizer built with Kotlin/JS
+- **Cross-Platform Consistency**: Identical tokenization results across all supported platforms
+- **Live Tokenization**: Real-time visualization of BPE token splitting and merging
+
+## 🌐 Try the Web UI
+
+Experience the tokenizer in action: [**Live Demo**](https://your-demo-url.com) (or build locally with `./gradlew :ui-sample:jsBrowserDistribution`)
+
+---
+
 Minimal, clean code for the (byte-level) Byte Pair Encoding (BPE) algorithm commonly used in LLM tokenization. The BPE algorithm is "byte-level" because it runs on UTF-8 encoded strings.
 
 This algorithm was popularized for LLMs by the [GPT-2 paper](https://d4mucfpksywv.cloudfront.net/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) and the associated GPT-2 [code release](https://github.com/openai/gpt-2) from OpenAI. [Sennrich et al. 2015](https://arxiv.org/abs/1508.07909) is cited as the original reference for the use of BPE in NLP applications. Today, all modern LLMs (e.g. GPT, Llama, Mistral) use this algorithm to train their tokenizers.
 
-There are two Tokenizers in this repository, both of which can perform the 3 primary functions of a Tokenizer: 1) train the tokenizer vocabulary and merges on a given text, 2) encode from text to tokens, 3) decode from tokens to text. The files of the repo are as follows:
+There are two Tokenizers in this repository, both of which can perform the 3 primary functions of a Tokenizer: 1) train the tokenizer vocabulary and merges on a given text, 2) encode from text to tokens, 3) decode from tokens to text. 
+
+## 📁 Repository Structure
+
+### Original Python Implementation
+The files of the original Python repo are as follows:
 
 1. [minbpe/base.py](minbpe/base.py): Implements the `Tokenizer` class, which is the base class. It contains the `train`, `encode`, and `decode` stubs, save/load functionality, and there are also a few common utility functions. This class is not meant to be used directly, but rather to be inherited from.
 2. [minbpe/basic.py](minbpe/basic.py): Implements the `BasicTokenizer`, the simplest implementation of the BPE algorithm that runs directly on text.
 3. [minbpe/regex.py](minbpe/regex.py): Implements the `RegexTokenizer` that further splits the input text by a regex pattern, which is a preprocessing stage that splits up the input text by categories (think: letters, numbers, punctuation) before tokenization. This ensures that no merges will happen across category boundaries. This was introduced in the GPT-2 paper and continues to be in use as of GPT-4. This class also handles special tokens, if any.
 4. [minbpe/gpt4.py](minbpe/gpt4.py): Implements the `GPT4Tokenizer`. This class is a light wrapper around the `RegexTokenizer` (2, above) that exactly reproduces the tokenization of GPT-4 in the [tiktoken](https://github.com/openai/tiktoken) library. The wrapping handles some details around recovering the exact merges in the tokenizer, and the handling of some unfortunate (and likely historical?) 1-byte token permutations.
 
+### Kotlin Multiplatform Implementation
+- **[minbpe-kmp/](minbpe-kmp/)**: Complete Kotlin Multiplatform port of the tokenizer
+  - **[library/](minbpe-kmp/library/)**: Core KMP library supporting JVM, Android, iOS, macOS, Linux, JS, and WASM
+  - **[ui-sample/](minbpe-kmp/ui-sample/)**: Interactive web UI built with Kotlin/JS demonstrating real-time tokenization
+
+### Additional Tools
+- **[tokenizer-comparison-tool/](tokenizer-comparison-tool/)**: Cross-platform validation tool ensuring consistency between Python and Kotlin implementations
+
 Finally, the script [train.py](train.py) trains the two major tokenizers on the input text [tests/taylorswift.txt](tests/taylorswift.txt) (this is the Wikipedia entry for her kek) and saves the vocab to disk for visualization. This script runs in about 25 seconds on my (M1) MacBook.
 
 All of the files above are very short and thoroughly commented, and also contain a usage example on the bottom of the file.
 
 ## quick start
+
+### Python (Original)
 
 As the simplest example, we can reproduce the [Wikipedia article on BPE](https://en.wikipedia.org/wiki/Byte_pair_encoding) as follows:
 
@@ -31,6 +63,30 @@ print(tokenizer.decode([258, 100, 258, 97, 99]))
 tokenizer.save("toy")
 # writes two files: toy.model (for loading) and toy.vocab (for viewing)
 ```
+
+### Kotlin Multiplatform (New)
+
+The same functionality is available in Kotlin across all platforms:
+
+```kotlin
+import sk.ainet.nlp.tools.tokenizer.BasicTokenizer
+
+val tokenizer = BasicTokenizer()
+val text = "aaabdaaabac"
+tokenizer.train(text, 256 + 3) // 256 byte tokens + 3 merges
+println(tokenizer.encode(text))
+// [258, 100, 258, 97, 99]
+println(tokenizer.decode(listOf(258, 100, 258, 97, 99)))
+// aaabdaaabac
+```
+
+### Web UI (Interactive)
+
+Try the tokenizer directly in your browser:
+
+1. **Build the web app**: `cd minbpe-kmp && ./gradlew :ui-sample:jsBrowserDistribution`
+2. **Open**: `minbpe-kmp/ui-sample/build/dist/js/productionExecutable/index.html`
+3. **Experience**: Real-time tokenization with visual token breakdown
 
 According to Wikipedia, running bpe on the input string: "aaabdaaabac" for 3 merges results in the string: "XdXac" where  X=ZY, Y=ab, and Z=aa. The tricky thing to note is that minbpe always allocates the 256 individual bytes as tokens, and then merges bytes as needed from there. So for us a=97, b=98, c=99, d=100 (their [ASCII](https://www.asciitable.com) values). Then when (a,a) is merged to Z, Z will become 256. Likewise Y will become 257 and X 258. So we start with the 256 bytes, and do 3 merges to get to the result above, with the expected output of [258, 100, 258, 97, 99].
 
@@ -129,6 +185,37 @@ to run the tests. (-v is verbose, slightly prettier).
 ## community extensions
 
 * [gnp/minbpe-rs](https://github.com/gnp/minbpe-rs): A Rust implementation of `minbpe` providing (near) one-to-one correspondence with the Python version
+* **This fork**: Kotlin Multiplatform implementation with interactive web UI demonstrating cross-platform tokenization
+
+## 🛠️ Building the Kotlin Multiplatform Version
+
+### Prerequisites
+- Java 21+ (enforced across all modules)
+- Gradle 8.x (included via wrapper)
+
+### Build Commands
+```bash
+# Build all platforms
+cd minbpe-kmp
+./gradlew clean assemble allTests
+
+# Build web UI only
+./gradlew :ui-sample:jsBrowserDistribution
+
+# Run platform-specific tests
+./gradlew :library:jvmTest
+./gradlew :library:jsTest
+./gradlew :library:wasmJsTest
+```
+
+### Supported Platforms
+- **JVM** (Java 21+)
+- **Android** (minSdk 24, compileSdk 36)
+- **iOS** (Arm64/Simulator)
+- **macOS** (Arm64)
+- **Linux** (x64/Arm64)
+- **JavaScript** (Browser/Node.js)
+- **WebAssembly** (WASM)
 
 ## exercise
 
