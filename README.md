@@ -13,7 +13,7 @@
 
 ## 🌐 Try the Web UI
 
-Experience the tokenizer in action: [**Live Demo**](https://your-demo-url.com) (or build locally with `./gradlew :ui-sample:jsBrowserDistribution`)
+Experience the tokenizer in action: [**Live Demo**](https://michalharakal.github.io/minbpe/) (or build locally with `./gradlew :ui-sample:jsBrowserDistribution`)
 
 ---
 
